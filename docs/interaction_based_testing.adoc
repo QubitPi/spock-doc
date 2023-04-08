@@ -103,7 +103,7 @@ We are now ready to describe the expected interactions between the two parties.
 == Dynamic Method Names in Interactions
 
 Specifying interactions on method names defined by a variable is very useful when several methods share testing code. We
-could parameterize the methods name to test. Example:
+could parameterize the methods name to test. For Example
 
 [source,groovy,indent=0]
 ----
