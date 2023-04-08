@@ -100,6 +100,43 @@ include::{sourcedir}/interaction/InteractionDocSpec.groovy[tag=example1]
 
 We are now ready to describe the expected interactions between the two parties.
 
+== Dynamic Method Names in Interactions
+
+Specifying interactions on method names defined by a variable is very useful when several methods share testing code. We
+could parameterize the methods name to test. For Example
+
+[source,groovy,indent=0]
+----
+def 'm1, m2 and m3 delegate its execution'(){
+    given:
+    def myObject = myObject(delegateMock)
+
+    when:
+    myObject."$methodName"()
+    then:
+    1 * delegateMock."do$methodName"()
+
+    where:
+    methodName << ['m1', 'm2', 'm3']
+}
+----
+
+Here is another example:
+
+[source,groovy,indent=0]
+----
+@Unroll
+def "Factory produces '#dataFetcher' as singleton"() {
+    expect:
+    DataFetcherFactory."get$dataFetcher"() is DataFetcherFactory."get$dataFetcher"()
+
+    where:
+    _ | dataFetcher
+    _ | "BookDataFetcher"
+    _ | "AuthorDataFetcher"
+}
+----
+
 == Mocking
 
 Mocking is the act of describing (mandatory) interactions between the object under specification and its collaborators.
