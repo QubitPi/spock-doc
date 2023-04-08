@@ -513,6 +513,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_creating_mock_objects">Creating Mock Objects</a></li>
 <li><a href="#_default_behavior_of_mock_objects">Default Behavior of Mock Objects</a></li>
 <li><a href="#_injecting_mock_objects_into_code_under_specification">Injecting Mock Objects into Code Under Specification</a></li>
+<li><a href="#_dynamic_method_names_in_interactions">Dynamic Method Names in Interactions</a></li>
 <li><a href="#_mocking">Mocking</a>
 <ul class="sectlevel3">
 <li><a href="#_interactions_2">Interactions</a></li>
@@ -3037,6 +3038,46 @@ This default behavior is overridable by stubbing the methods, which we will lear
 </div>
 <div class="paragraph">
 <p>We are now ready to describe the expected interactions between the two parties.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_dynamic_method_names_in_interactions"><a class="link" href="#_dynamic_method_names_in_interactions">Dynamic Method Names in Interactions</a></h3>
+<div class="paragraph">
+<p>Specifying interactions on method names defined by a variable is very useful when several methods share testing code. We
+could parameterize the methods name to test. Example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">def 'm1, m2 and m3 delegate its execution'(){
+    given:
+    def myObject = myObject(delegateMock)
+
+    when:
+    myObject."$methodName"()
+    then:
+    1 * delegateMock."do$methodName"()
+
+    where:
+    methodName &lt;&lt; ['m1', 'm2', 'm3']
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Here is another example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">@Unroll
+def "Factory produces '#dataFetcher' as singleton"() {
+    expect:
+    DataFetcherFactory."get$dataFetcher"() is DataFetcherFactory."get$dataFetcher"()
+
+    where:
+    _ | dataFetcher
+    _ | "BookDataFetcher"
+    _ | "AuthorDataFetcher"
+}</code></pre>
+</div>
 </div>
 </div>
 <div class="sect2">
@@ -10575,7 +10616,7 @@ This is due to how groovy implements traits and AST transformations.</p>
 <div id="footer">
 <div id="footer-text">
 Version X-replaced-by-gradle<br>
-Last updated 2023-04-08 07:47:14 UTC
+Last updated 2023-04-08 07:58:20 UTC
 </div>
 </div>
 </body>
