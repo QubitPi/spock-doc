@@ -10,7 +10,7 @@ include::include.adoc[]
 . <<utilities.adoc#,Utilities>>
 . <<parallel_execution.adoc#,Parallel Execution>>
 . <<modules.adoc#,Modules>>
-. <<useful-groovy-syntax.adoc#,Useful Groovy Syntax>>
+. <<useful_groovy_syntax.adoc#,Useful Groovy Syntax>>
 . <<release_notes.adoc#,Release Notes>>
 . <<migration_guide.adoc#,Migration Guide>>
 . <<faq.adoc#,Frequently Asked Questions (FAQ)>>
