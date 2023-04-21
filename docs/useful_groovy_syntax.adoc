@@ -1,0 +1,27 @@
+= Groovy Syntax Useful for Spock
+include::include.adoc[]
+
+== Merge 2 Maps
+
+Let's say our first map is `[a: true, b: false]` and the second `[a:false]`. To merge them and get
+`[a: false, b:false]`, we can use plus:
+
+[source,groovy,indent=0]
+----
+assert [ a: true, b: false ] + [ a: false ] == [ a: false, b: false ]
+----
+
+Or left shift:
+
+[source,groovy,indent=0]
+----
+assert [ a: true, b: false ] << [ a: false ] == [ a: false, b: false ]
+----
+
+The difference is that `<<`
+https://github.com/groovy/groovy-core/blob/GROOVY_2_4_X/src/main/org/codehaus/groovy/runtime/DefaultGroovyMethods.java#L12296[adds the right hand map into the left hand map].
+When we use `+`, it
+https://github.com/groovy/groovy-core/blob/GROOVY_2_4_X/src/main/org/codehaus/groovy/runtime/DefaultGroovyMethods.java#L7433[constructs a new Map based on the LHS],
+and adds the right hand map into it
+
+NOTE: We also have `-` that acts accordingly
