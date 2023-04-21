@@ -670,6 +670,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_grails_module">Grails Module</a></li>
 </ul>
 </li>
+<li><a href="#_groovy_syntax_useful_for_spock">Groovy Syntax Useful for Spock</a>
+<ul class="sectlevel2">
+<li><a href="#_merge_2_maps">Merge 2 Maps</a></li>
+</ul>
+</li>
 <li><a href="#_release_notes">Release Notes</a>
 <ul class="sectlevel2">
 <li><a href="#_2_4_tbd">2.4 (tbd)</a></li>
@@ -7436,6 +7441,50 @@ Grails 2.3 and higher have built-in Spock support and do not require a plugin.
 </div>
 </div>
 <div class="sect1">
+<h2 id="_groovy_syntax_useful_for_spock"><a class="link" href="#_groovy_syntax_useful_for_spock">Groovy Syntax Useful for Spock</a></h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_merge_2_maps"><a class="link" href="#_merge_2_maps">Merge 2 Maps</a></h3>
+<div class="paragraph">
+<p>Let&#8217;s say our first map is <code>[a: true, b: false]</code> and the second <code>[a:false]</code>. To merge them and get
+<code>[a: false, b:false]</code>, we can use plus:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">assert [ a: true, b: false ] + [ a: false ] == [ a: false, b: false ]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or left shift:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">assert [ a: true, b: false ] &lt;&lt; [ a: false ] == [ a: false, b: false ]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The difference is that <code>&lt;&lt;</code>
+<a href="https://github.com/groovy/groovy-core/blob/GROOVY_2_4_X/src/main/org/codehaus/groovy/runtime/DefaultGroovyMethods.java#L12296">adds the right hand map into the left hand map</a>.
+When we use <code>+</code>, it
+<a href="https://github.com/groovy/groovy-core/blob/GROOVY_2_4_X/src/main/org/codehaus/groovy/runtime/DefaultGroovyMethods.java#L7433">constructs a new Map based on the LHS</a>,
+and adds the right hand map into it</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+We also have <code>-</code> that acts accordingly
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_release_notes"><a class="link" href="#_release_notes">Release Notes</a></h2>
 <div class="sectionbody">
 <div class="sect2">
@@ -10616,7 +10665,7 @@ This is due to how groovy implements traits and AST transformations.</p>
 <div id="footer">
 <div id="footer-text">
 Version X-replaced-by-gradle<br>
-Last updated 2023-04-21 09:38:41 UTC
+Last updated 2023-04-21 09:49:36 UTC
 </div>
 </div>
 </body>
