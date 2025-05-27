@@ -148,7 +148,7 @@ interacting feature methods), and may occur more than once.
 
 Spock has built-in support for implementing each of the conceptual phases of a feature method. To this end, feature
 methods are structured into so-called _blocks_. Blocks start with a label, and extend to the beginning of the next block,
-or the end of the method. There are six kinds of blocks: `given`, `when`, `then`, `expect`, `cleanup`, and `where` blocks.
+or the end of the method. There are seven kinds of blocks: `given`, `when`, `then`, `expect`, `cleanup`, `where`, and `filter` blocks.
 Any statements between the beginning of the method and the first explicit block belong to an implicit `given` block.
 
 A feature method must have at least one explicit (i.e. labelled) block - in fact, the presence of an explicit block is
@@ -174,7 +174,7 @@ def elem = "push me"
 The `given` block is where you do any setup work for the feature that you are describing. It may not be preceded by
 other blocks, and may not be repeated. A `given` block doesn't have any special semantics. The `given:` label is
 optional and may be omitted, resulting in an _implicit_ `given` block. Originally, the alias `setup:` was the preferred block name,
-but using `given:` often leads to a more readable feature method description (see <<specifications_as_documentation,Specifications as Documentation>>).
+but using `given:` often leads to a more readable feature method description (see <<specifications-as-documentation,Specifications as Documentation>>).
 
 ==== When and Then Blocks
 
@@ -241,6 +241,63 @@ def setup() {
 ----
 
 If an explicit condition is violated, it will produce the same nice diagnostic message as an implicit condition.
+
+[[opt-out-of-condition-handling]]
+====== Opt-out of condition handling
+
+Sometimes, you may want to use a top-level expression that is not treated as a condition.
+
+For example, you may want to loop over a list with `each` and do assertions on its items.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=each-assert-normal]
+----
+
+However, this will fail if the list is empty, as `each` returns the list again and an empty list is falsy according to Groovy-truth.
+
+To avoid this, you can use the `!!` operator to opt-out of condition handling:
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=each-assert-opt-out-operator]
+----
+
+The `!!` operator can also be used to hide the contents of an expression in an explicit assertion statement.
+This can be helpful, if the rendered expression is too long to be readable, or if you want to hide the data itself.
+
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=explicit-with-opt-out-operator-and-message]
+----
+
+will be rendered as
+
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=explicit-with-opt-out-operator-and-message-result]
+----
+
+as opposed to
+
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=normal-condition-result]
+----
+
+and you can even leave out the message, although it is not recommended, to get this:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=explicit-with-opt-out-operator]
+----
+
+will be rendered as
+
+----
+include::{sourcedir}/primer/ConditionsSpec.groovy[tag=explicit-with-opt-out-operator-result]
+----
+
+IMPORTANT: The `!!` must be the outermost expression, see https://groovy-lang.org/operators.html#_operator_precedence[Groovy's docs on Operator Precedence].
+           If in doubt use parentheses, `!!(expression)`.
 
 ===== Exception Conditions
 
@@ -320,6 +377,28 @@ def "HashMap accepts null key"() {
 By using `notThrown()`, we make it clear that in particular a `NullPointerException` should not be thrown. (As per the
 contract of `Map.put()`, this would be the right thing to do for a map that doesn't support `null` keys.) However,
 the method will also fail if any other exception is thrown.
+
+===== Methods Accepting Implicit Conditions as Code Blocks
+
+Methods annotated with `@ConditionBlock` will treat `Closure` arguments as code blocks containing
+conditions allowing to leave off the `assert` keyword. As in `expect`-blocks and `then`-blocks, variable declarations
+and void method invocations will not be considered conditions.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/utilities/ConditionBlockSpec.groovy[tag=ConditionBlock-usage]
+----
+
+NOTE: The `@ConditionBlock` only works, if the types involved are known at compile time (no `def` keyword). See below for more details.
+
+The `@ConditionBlock` annotation only takes effect if:
+
+* the `Closures` are passed as literals,
+and the Groovy compiler can (at compilation time) determine the target type of the method invocation
+referencing the annotated method,
+* the annotated method is called on object of type known at compilation time (no `def`).
+
+If the annotated method is overloaded, the closure arguments of all overloads are considered code blocks.
 
 ===== Interactions
 
@@ -404,7 +483,7 @@ TIP: If a specification is designed in such a way that all its feature methods r
 
 ==== Where Blocks
 
-A `where` block always comes last in a method, and may not be repeated. It is used to write data-driven feature methods.
+A `where` block may only be followed by a `filter` block, and may not be repeated. It is used to write data-driven feature methods.
 To give you an idea how this is done, have a look at the following example:
 
 [source,groovy]
@@ -426,6 +505,21 @@ and another one where `a` is 3, `b` is 9, and `c` is 9.
 Although it is declared last, the `where` block is evaluated before the feature method containing it runs.
 
 The `where` block is further explained in the <<data_driven_testing.adoc#data-driven-testing,Data Driven Testing>> chapter.
+
+==== Filter Blocks
+
+A `filter` block always comes last in a method, and may not be repeated. It is used to filter iterations in data-driven feature methods.
+To give you an idea how this is done, have a look at the following example:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/datadriven/DataSpec.groovy[tag=excluding-iterations]
+----
+
+The content of the `filter` block is treated like the content of an `expect` block. If any of the implicit or explicit
+assertions in it fail for a given iteration, this iteration is skipped.
+
+The `filter` block is further explained in the <<data_driven_testing.adoc#data-driven-testing,Data Driven Testing>> chapter.
 
 == Helper Methods
 
@@ -482,30 +576,19 @@ false                         ...
 
 Not very helpful. Fortunately, we can do better:
 
-[source,groovy]
+[source,groovy,indent=0]
 ----
-void matchesPreferredConfiguration(pc) {
-  assert pc.vendor == "Sunny"
-  assert pc.clockRate >= 2333
-  assert pc.ram >= 4096
-  assert pc.os == "Linux"
-}
+include::{sourcedir}/primer/VerifyMethodsDocSpec.groovy[tag=verify-helper-method]
 ----
 
-When factoring out conditions into a helper method, two points need to be considered: First, implicit conditions must
-be turned into explicit conditions with the `assert` keyword. Second, the helper method must have return type `void`.
+When factoring out conditions into a helper method, you need to ensure the method has return type `void`.
 Otherwise, Spock might interpret the return value as a failing condition, which is not what we want.
 
 As expected, the improved helper method tells us exactly what's wrong:
 
-[source,groovy]
+[source,groovy,indent=0]
 ----
-Condition not satisfied:
-
-assert pc.clockRate >= 2333
-       |  |         |
-       |  1666      false
-       ...
+include::{sourcedir}/primer/VerifyMethodsDocSpec.groovy[tag=verify-helper-method-result]
 ----
 
 A final advice: Although code reuse is generally a good thing, don't take it too far. Be aware that the use of fixture
@@ -557,7 +640,7 @@ with(service) {
 Sometimes an IDE has trouble to determine the type of the target, in that case you can help out by manually specifying the
 target type via `with(target, type, closure)`.
 
-== Using `verifyAll` to assert multiple expectations together
+== Using `verifyAll` or `@VerifyAll` helper methods to assert multiple expectations together
 
 Normal expectations fail the test on the first failed assertions. Sometimes it is helpful to collect these failures before
 failing the test to have more information, this behavior is also known as soft assertions.
@@ -582,7 +665,6 @@ def "offered PC matches preferred configuration"() {
 
 or it can be used without a target.
 
-
 [source,groovy]
 ----
   expect:
@@ -594,7 +676,112 @@ or it can be used without a target.
 
 Like `with` you can also optionally define a type hint for the IDE.
 
-[[specifications_as_documentation]]
+Alternatively, `verifyAll` conditions can be extracted into a helper method annotated with `@VerifyAll`
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyMethodsDocSpec.groovy[tag=verify-all-helper-method]
+----
+
+== Using `verifyEach` to assert on each element of an `Iterable`
+
+There are several ways to do assertions on `Iterable` or `Collection`.
+
+=== List Equality
+
+List equality is useful when the expected values are few and can be easily constructed.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=simple-list-equality]
+----
+
+will be rendered as
+
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=simple-list-equality-result]
+----
+
+=== Set Equality
+
+As with list equality, set equality is useful when the expected values are few and can be easily constructed.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=simple-set-equality]
+----
+
+will be rendered as
+
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=simple-set-equality-result]
+----
+
+=== Every Method
+You can also use the standard Groovy method `every` to do assertions.
+The downside is, that you don't get any insight into which element failed, or why.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=every-method]
+----
+
+will be rendered as
+
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=every-method-result]
+----
+
+[[verify-each]]
+=== VerifyEach Method
+Since 2.4, you can use the `verifyEach` method to perform assertions on every element of an iterable.
+In contrast to `every`, it will not stop at the first failure and instead check every element and provide a comprehensive report at the end.
+It won't render the full list of items, which makes it useful in cases of a large number of items.
+Like `with` the current item will be set as the delegate and passed as parameter to the closure.
+The statements in the closure will also be treated as implicit assertions.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=verify-each]
+----
+
+will be rendered as
+
+----
+include::{snapshotdir}/primer/VerifyEachDocSpec/verifyEach_method.txt[]
+----
+
+By default, the item will be rendered with a simple `toString()`.
+However, you can provide a custom "namer"-method to provide your own representation.
+This is useful when the item either has no useful `toString()` method or if it is too verbose.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=verify-each-namer]
+----
+
+will be rendered as
+
+----
+include::{snapshotdir}/primer/VerifyEachDocSpec/verifyEach_with_namer_method.txt[]
+----
+
+You can also use the optional index parameter to get the index of the current item.
+This is useful when you want to do assertions based on the index.
+For example, if you want to compare with a list of expected values.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/primer/VerifyEachDocSpec.groovy[tag=verify-each-index]
+----
+
+will be rendered as
+
+----
+include::{snapshotdir}/primer/VerifyEachDocSpec/verifyEach_with_index_method.txt[]
+----
+
+[[specifications-as-documentation]]
 == Specifications as Documentation
 
 Well-written specifications are a valuable source of information. Especially for higher-level specifications targeting

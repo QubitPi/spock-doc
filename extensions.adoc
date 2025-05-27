@@ -119,7 +119,7 @@ followed by a predicate and an optional reason:
 include::{sourcedir}/extension/IgnoreIfDocSpec.groovy[tag=example-a]
 ----
 
-[[precondition_context]]
+[[precondition-context]]
 ==== Precondition Context
 To make predicates easier to read and write, the following properties are available inside the closure:
 
@@ -281,7 +281,7 @@ failure are skipped.
 `Stepwise` does not override the behaviour of annotations such as `Ignore`, `IgnoreRest`, and `IgnoreIf`, so care
 should be taken when ignoring feature methods in spec classes annotated with `Stepwise`.
 
-NOTE: This will also set the execution mode to `SAME_THREAD`, see <<parallel-execution.adoc#parallel-execution, Parallel Execution>> for more information.
+NOTE: This will also set the execution mode to `SAME_THREAD`, see <<parallel_execution.adoc#parallel-execution, Parallel Execution>> for more information.
 
 Since Spock 2.2, `Stepwise` can be applied to data-driven feature methods, having the effect of executing them sequentially (even if concurrent test mode is active) and to skip subsequent iterations if one iteration fails:
 
@@ -294,6 +294,7 @@ This will pass for the first two iterations, fail on the third and skip the rema
 
 NOTE: For backward compatibility with Spock versions prior to 2.2, applying the annotation on spec level will _not_ automatically skip subsequent feature method iterations upon failure in a previous iteration. If you want that in addition to (or instead of) step-wise spec mode, you do have to annotate each individual feature method you wish to have that capability. This also conforms to the principle that if you want to skip tests under whatever conditions, you ought to document your intent explicitly.
 
+[[timeout-extension]]
 === Timeout
 
 To fail a feature method, fixture, or class that exceeds a given execution duration, use `spock.lang.Timeout`,
@@ -310,8 +311,7 @@ def "I fail if I run for more than five seconds"() { ... }
 def "I better be quick" { ... }
 ----
 
-Applying `Timeout` to a spec class has the same effect as applying it to each feature that is not already annotated
-with `Timeout`, excluding time spent in fixtures:
+Applying `@Timeout` to a spec class has the same effect as applying it to each feature and fixture method that is not already annotated with `@Timeout`:
 
 [source,groovy]
 ----
@@ -322,13 +322,29 @@ class TimedSpec extends Specification {
 
   @Timeout(value = 250, unit = MILLISECONDS)
   def "I fail much faster"() { ... }
+
+  def setup() { /* I have 10 seconds */}
+
+  @Timeout(value = 25, unit = SECONDS)
+  def cleanup() { /* I have 25 seconds */ }
 }
 ----
 
 When applied to a fixture method, the timeout is per execution of the fixture method.
 
 When a timeout is reported to the user, the stack trace shown reflects the execution stack of the test framework when
-the timeout was exceeded.
+the timeout was exceeded. Additionally, thread dumps can be captured and logged on unsuccessful interrupt attempts if configured using the <<spock-configuration-file,Spock Configuration File>>.
+
+.Timeout Configuration
+[source,groovy,indent=0]
+----
+include::{sourcedir}/timeout/TimeoutConfigurationDoc.groovy[tag=example]
+----
+
+Since Spock 2.4, you can also configure a global timeout via the configuration file.
+This will apply to all features that are not already annotated with `@Timeout`.
+Setting the global to non-null will have the same effect as applying `@Timeout` it to all features.
+With the flag `applyGlobalTimeoutToFixtures` you can control if the global timeout should also be applied to fixture methods.
 
 === Retry
 
@@ -439,7 +455,7 @@ methods.
 To use multiple categories, you can either give multiple categories to the `value` attribute
 of the annotation or you can apply the annotation multiple times to the same target.
 
-NOTE: This will also set the execution mode to `SAME_THREAD` if applied on a `Specification`, see <<parallel-execution.adoc#parallel-execution, Parallel Execution>> for more information.
+NOTE: This will also set the execution mode to `SAME_THREAD` if applied on a `Specification`, see <<parallel_execution.adoc#parallel-execution, Parallel Execution>> for more information.
 
 === ConfineMetaClassChanges
 
@@ -463,7 +479,7 @@ CAUTION: Temporarily changing the meta classes is only safe when specs are
 run in a single thread per JVM. Even though many execution environments do limit themselves to one thread
 per JVM, keep in mind that Spock cannot enforce this.
 
-NOTE: This will acquire a `READ_WRITE` lock for `Resources.META_CLASS_REGISTRY`, see <<parallel-execution.adoc#parallel-execution, Parallel Execution>> for more information.
+NOTE: This will acquire a `READ_WRITE` lock for `Resources.META_CLASS_REGISTRY`, see <<parallel_execution.adoc#parallel-execution, Parallel Execution>> for more information.
 
 === RestoreSystemProperties
 Saves system properties before the annotated feature method (including any setup and cleanup methods) gets run,
@@ -487,13 +503,17 @@ CAUTION: Temporarily changing the values of system properties is only safe when 
 run in a single thread per JVM. Even though many execution environments do limit themselves to one thread
 per JVM, keep in mind that Spock cannot enforce this.
 
-NOTE: This will acquire a `READ_WRITE` lock for `Resources.SYSTEM_PROPERTIES`, see <<parallel-execution.adoc#parallel-execution, Parallel Execution>> for more information.
+NOTE: This will acquire a `READ_WRITE` lock for `Resources.SYSTEM_PROPERTIES`, see <<parallel_execution.adoc#parallel-execution, Parallel Execution>> for more information.
 
 === AutoAttach
 
-Automatically attaches a detached mock to the current `Specification`. Use this if there is no direct framework
-support available. Spring and Guice dependency injection is automatically handled by the
-<<module_spring.adoc#_spring_module,Spring Module>> and <<modules.adoc#_guice_module,Guice Module>> respectively.
+Automatically attaches a detached mock to the current specification.
+`@AutoAttach` can only be used regular instance fields, not on shared or static ones.
+Use this, if there is no direct framework support available.
+To create detached mocks, see <<interaction_based_testing.adoc#DetachedMockFactory,Create Mocks Outside Specifications>>
+
+Spring and Guice dependency injection is automatically handled by the
+<<module_spring.adoc#spring-module,Spring Module>> and <<modules.adoc#_guice_module,Guice Module>>, respectively.
 
 === AutoCleanup
 
@@ -521,23 +541,39 @@ annotated object. To prevent cleanup exceptions from being reported, override th
 def ignoreMyExceptions
 ----
 
-[[_temp_dir]]
+[[temp-dir]]
 === TempDir
 
 In order to generate a temporary directory for test and delete it after test, annotate a member field of type
 `java.io.File`, `java.nio.file.Path` or untyped using `def` in a spec class (`def` will inject a `Path`).
 Alternatively, you can annotate a field with a custom type that has a public constructor accepting either `java.io.File` or `java.nio.file.Path` as its single parameter (see <<utilities.adoc#file-stystem-fixture, FileSystemFixture>> for an example).
-If the annotated field is `@Shared`, the temporary directory will be shared in the corresponding specification, otherwise every feature method and every iteration per parametrized feature method will have their own temporary directories:
+If the annotated field is `@Shared`, the temporary directory will be shared in the corresponding specification, otherwise every feature method and every iteration per parametrized feature method will have their own temporary directories.
+
+Since Spock 2.4, you can also use parameter injection with `@TempDir`.
+The types follow the same rules as for field injection.
+Valid methods are `setup()`, `setupSpec()`, or any feature methods.
 
 [source,groovy,indent=0]
 ----
 include::{sourcedir}/extension/TempDirDocSpec.groovy[tag=example]
 ----
 
-If you want to customize the parent directory for temporary directories, you can use the <<spock-configuration-file,Spock Configuration File>>.
+[[temp-dir-cleanup]]
+==== Cleanup
 
-If `keep` is set to `true`, Spock will not delete temporary directories after tests. The default value is taken from
-system property `spock.tempDir.keep` or `false`, if undefined.
+You can configure the cleanup behavior via `@TempDir(cleanup = <mode>)`.
+
+- `DEFAULT` will use the global value
+- `ALWAYS` Spock will delete temporary directories after tests
+- `NEVER` Spock will not delete temporary directories after tests.
+- `ON_SUCCESS` Spock will not delete temporary directories if a test failed.
+
+The global value for `DEFAULT` is taken from system property `spock.tempdir.cleanup`, or the configuration file.
+If nothing is configured, it will default to `ALWAYS`.
+
+==== Configuration
+
+If you want to customize the parent directory for temporary directories, you can use the <<spock-configuration-file,Spock Configuration File>>.
 
 .Temporary Directory Configuration
 [source,groovy]
@@ -548,6 +584,9 @@ tempdir {
   baseDir Paths.get("/tmp")
   // boolean, default is system property "spock.tempDir.keep"
   keep true
+  // spock.lang.TempDir.CleanupMode, default ALWAYS
+  // allows to set the default cleanup mode to use
+  cleanup spock.lang.TempDir.CleanupMode.ON_SUCCESS
 }
 ----
 
@@ -709,6 +748,96 @@ runner {
 }
 ----
 
+[[snapshot-testing]]
+=== Snapshot testing
+
+Since version 2.4, the `@Snapshot` extension has been added for snapshot testing.
+This type of testing compares the current output of your code with a saved version (a snapshot) to check for any changes.
+It's especially useful for checking if your code still produces the right text outputs after changes.
+The `@Snapshot` extension also makes it easy to create and update these snapshots.
+
+You use the `@Snapshot` extension along with the `Snapshotter` class.
+The `Snapshotter` class provides the entrypoint for the tests.
+You can use `@Snapshot` in two ways: you can add it to a field in your code, or you can use it as a parameter in a method.
+The examples below will show you how to do both.
+
+.Snapshot Extension as field
+[source,groovy]
+----
+include::{sourcedir}/extension/SnapshotDocSpec.groovy[tag=field]
+----
+
+.Snapshot Extension as parameter
+[source,groovy]
+----
+include::{sourcedir}/extension/SnapshotDocSpec.groovy[tag=parameter]
+----
+
+You can store and assert over multiple snapshots by providing an optional snapshotId as identifier.
+
+.Multiple snapshots
+[source,groovy]
+----
+include::{sourcedir}/extension/SnapshotDocSpec.groovy[tag=multi-snapshot]
+----
+
+By default, snapshots are stored and compared as plain text.
+However, you can plug your own matching logic.
+For example, you could compare two json structures with a third-party library.
+
+.Custom matching
+[source,groovy]
+----
+include::{sourcedir}/extension/SnapshotDocSpec.groovy[tag=custom-matching]
+----
+
+You can also extend from the `Snapshotter` class to provide your own convenience methods.
+Check `org.spockframework.specs.extension.SpockSnapshotter` in the spock codebase for an example.
+
+==== Configuration
+
+The snapshots are stored in the `rootPath` directory, which can be configured either in the  <<spock-configuration-file,Spock Configuration File>>, or via the `spock.snapshots.rootPath` system property.
+The `rootPath` directory is required and the `@Snapshot` extension will throw an exception if it is not configured when the extension is used.
+
+Snapshots can be updated when setting the `spock.snapshots.updateSnapshots` system property to `true`, or via the config file.
+
+You can configure the extension to store the actual value in case of a mismatch by setting the `spock.snapshots.writeActual` system property to `true`, or via the config file.
+If enabled the extension will store the result in a file next to the original one with an additional `.actual` extension.
+The `.actual` file will automatically be deleted on the next successful run, as long as the feature is still enabled.
+This option is useful, when the snapshot is too large or complex to analyze with the built-in reporting.
+
+.Example snapshot config
+[source,groovy]
+----
+snapshots {
+  rootPath = Paths.get("src/test/resources")
+  updateSnapshots = System.getenv("UPDATE_SNAPSHOTS") == "true"
+  writeActualSnapshotOnMismatch = !System.getenv("CI")
+  defaultExtension = 'snap.groovy'
+}
+----
+
+The `@Snapshot` extension will also set the `snapshot` <<test-tag-extension,tag>> on the affected features.
+This can be utilized to only run the features that produce snapshots when updating them.
+
+.Example Gradle config for snapshot testing
+[source,groovy]
+----
+tasks.named("test", Test) {
+  useJUnitPlatform()
+  // set the snapshot directory, as resources are already an input we don't need to track them separately
+  systemProperty("spock.snapshots.rootPath", "src/test/resources")
+  // allow updating the snapshots with running `gradlew test -PupdateSnapshots`
+  if (project.hasProperty("updateSnapshots")) {
+    systemProperty("spock.snapshots.updateSnapshots", "true")
+    // not strictly necessary but speeds up the process by only executing snapshot tests
+    useJUnitPlatform {
+      includeTags("snapshot")
+    }
+  }
+}
+----
+
 == Third-Party Extensions
 
 You can find a list of third-party extensions in the https://github.com/spockframework/spock/wiki/Third-Party-Extensions[Spock Wiki].
@@ -770,6 +899,9 @@ and also attached one annotation directly.
 
 Repeatable annotations are not supported for parameter annotations,
 as they are primarily intended to provide a value and only a singular value is allowed.
+
+NOTE: Since Spock 2.4 the new subtype `IStatelessAnnotationDrivenExtension` is available, which should be used if the extension does not need to store `Specification` specific state and is thread-safe.
+Otherwise, it behaves the same as `IAnnotationDrivenExtension`.
 
 `IAnnotationDrivenExtension` has the following nine methods, where in each you can prepare a specification with your
 extension magic, like attaching interceptors to various interception points as described in the chapter
@@ -854,6 +986,7 @@ extension. If the configuration object is only used in an annotation driven loca
 when then configuration object is to be injected into the extension, and you will also get an error when the
 configuration file is evaluated, and it contains the section, as the configuration object is not properly registered yet.
 
+[#interceptors]
 === Interceptors
 
 For applying the magic of your extension, there are various interception points, where you can attach interceptors from
@@ -862,6 +995,7 @@ be multiple interceptors added by arbitrary Spock extensions (shipped or 3rd par
 on the order they are added, but there should not be made any order assumptions within one interception point.
 
 .Spock Interceptors
+[#spock-interceptors]
 image::images/spock_interceptors.png[Spock Interceptors, align=center]
 
 An ellipsis in the figure means that the block before it can be repeated an arbitrary amount of times.
@@ -869,13 +1003,13 @@ An ellipsis in the figure means that the block before it can be repeated an arbi
 The `... method interceptors` are of course only run if there are actual methods of this type to be executed (the white
 boxes) and those can <<Injecting Method Parameters, inject parameters>> to be given to the method that will be run.
 
-The difference between shared initializer interceptor and shared initializer method interceptor and between initializer
-interceptor and initializer method interceptor - as there can be at most one of those methods each - is, that there are
-only the two methods if there are `@Shared`, respectively non-`@Shared`, fields that get values assigned at declaration
-time. The compiler will put those initializations in a generated method and call it at the proper place in the
-lifecycle. So if there are no such initializations, no method is generated and thus the method interceptor is never
+The shared initializer method interceptor and initializer method interceptor are called around two methods that are
+generated by the compiler if there are `@Shared`, respectively non-`@Shared`, fields that get values assigned at
+declaration time. The compiler will put those initializations in a generated method and call it at the proper place in
+the lifecycle. So if there are no such initializations, no method is generated and thus the method interceptor is never
 called. The non-method interceptors are always called at the proper place in the lifecycle to do work that has to be
-done at that time.
+done at that time. There can also be multiple such methods, if you for example have a super specification that itself
+has fields with initialization expressions.
 
 To create an interceptor to be attached to an interception point, you need to create a class that implements the
 interface `IMethodInterceptor`. This interface has the sole method `intercept(IMethodInvocation invocation)`. The
@@ -888,41 +1022,24 @@ interception points, there is also the convenience class `AbstractMethodIntercep
 provides various methods for overriding that are called for the various interception points. Most of these methods have
 a double meaning, like `interceptSetupMethod` which is called for the `setup interceptor` and the `setup method
 interceptor`. If you attach your interceptor to both of them and need a differentiation, you can check for
-`invocation.method.reflection`, which will be set in the method interceptor case and `null` otherwise. Alternatively you
-can of course build two different interceptors or add a parameter to your interceptor and create two instances, telling
-each at addition time whether it is attached to the method interceptor or the other one.
+`invocation.method.reflection`, which will be set in the method interceptor case and `null` otherwise, or you can check
+`invocation.method.name` which behaves the same, or you can check for `invocation.target == invocation.instance`.
+Alternatively, you can of course build two different interceptors or add a parameter to your interceptor and create
+two instances, telling each at addition time whether it is attached to the method interceptor or the other one.
 
+[source,groovy,indent=0]
+----
+include::{sourcedir}/extension/InterceptorSpec.groovy[tag=interceptor-class]
+----
 .Add All Interceptors
-[source,groovy]
+[source,groovy,indent=0]
 ----
-class I extends AbstractMethodInterceptor { I(def s) {} }
+include::{sourcedir}/extension/InterceptorSpec.groovy[tag=interceptor-register-spec]
 
-// On SpecInfo
-specInfo.addSharedInitializerInterceptor new I('shared initializer')
-specInfo.sharedInitializerMethod?.addInterceptor new I('shared initializer method')
-specInfo.addInterceptor new I('specification')
-specInfo.addSetupSpecInterceptor new I('setup spec')
-specInfo.setupSpecMethods*.addInterceptor new I('setup spec method')
-specInfo.allFeatures*.addInterceptor new I('feature')
-specInfo.addInitializerInterceptor new I('initializer')
-specInfo.initializerMethod?.addInterceptor new I('initializer method')
-specInfo.allFeatures*.addIterationInterceptor new I('iteration')
-specInfo.addSetupInterceptor new I('setup')
-specInfo.setupMethods*.addInterceptor new I('setup method')
-specInfo.allFeatures*.featureMethod*.addInterceptor new I('feature method')
-specInfo.addCleanupInterceptor new I('cleanup')
-specInfo.cleanupMethods*.addInterceptor new I('cleanup method')
-specInfo.addCleanupSpecInterceptor new I('cleanup spec')
-specInfo.cleanupSpecMethods*.addInterceptor new I('cleanup spec method')
-specInfo.allFixtureMethods*.addInterceptor new I('fixture method')
-
-// on FeatureInfo
-featureInfo.addInterceptor new I('feature')
-featureInfo.addIterationInterceptor new I('iteration')
-featureInfo.featureMethod.addInterceptor new I('feature method')
-
+include::{sourcedir}/extension/InterceptorSpec.groovy[tag=interceptor-register-feature]
 ----
 
+[[parameter-injection]]
 ==== Injecting Method Parameters
 
 Starting with Spock 2.4, it is possible to create `IAnnotationDrivenExtension` that target method parameters directly.
@@ -1041,3 +1158,251 @@ def 'test parameter injection'(MyInjectable myInjectable) {
 }
 ----
 --
+
+[[mock-makers]]
+=== Mock Maker Extensions
+
+Spock creates mock objects via the `IMockMaker` interface.
+When Spock is creating a mock, it will ask the available mock makers in order of priority,
+if it can mock the requested type. Spock will use the first mock maker which is capable to mock the requested type.
+
+The following mock makers are built-in, and are selected in this order:
+
+* `java-proxy`: Uses the `java.lang.reflect.Proxy` API to create mocks of interfaces.
+* `byte-buddy`: Uses https://bytebuddy.net/[Byte Buddy] to create mock objects.
+** Requires `net.bytebuddy:byte-buddy` 1.9+ on the class path.
+* `cglib`: Deprecated: Uses https://github.com/cglib/cglib[CGLIB] to create mock objects.
+** Requires `cglib:cglib-nodep` 3.2.0+ on the class path.
+* `mockito`: Uses https://site.mockito.org/[Mockito] to create mock objects.
+** Can be configured to use additional Mockito feature like mock `Serializable`
+** Requires `org.mockito:mockito-core` 4.11+ on the class path.
+
+.Capabilities of the different built-in mock makers
+[cols=".^~h,^.^15,^.^15,^.^15,^.^15"]
+|===
+^|          Capability           | `java-proxy` | `byte-buddy` | `cglib` | `mockito`
+
+| Interface                      |      ✔       |      ✔       |    ✔    |     ✔
+| Class                          |      ✘       |      ✔       |    ✔    |     ✔
+| Additional Interfaces          |      ✔       |      ✔       |    ✔    |     ✔
+| Explicit Constructor Arguments |      ✘       |      ✔       |    ✔    |     ✔
+| Final Class                    |      ✘       |      ✘       |    ✘    |     ✔
+| Final Method                   |      ✘       |      ✘       |    ✘    |     ✔
+| Static Method                  |      ✘       |      ✘       |    ✘    |     ✔
+|===
+
+The class `spock.mock.MockMakers` provides constants and methods for the built-in mock makers.
+
+You can select your preferred mock maker, by defining the `preferredMockMaker` property
+in the <<#spock-configuration-file,Spock Configuration File>>.
+The preferred mock maker will be used globally, if no mock maker is explicitly specified for a given mock.
+
+.Mock Maker settings in the Spock Configuration file
+[source,groovy,indent=0]
+----
+include::{sourcedir}/extension/MockMakerConfigurationDocSpec.groovy[tag=mock-maker-preferredMockMaker]
+----
+
+[[mock-makers-mockito]]
+==== Mockito Mock Maker
+
+The `mockito` Mock Maker provides the ability to mock final types, enums and final methods.
+The mocking of final classes is automatically enabled, if `org.mockito:mockito-core` 4.11+ is on the class path.
+
+For mocking of final methods, you need to select the `mockito` mock maker during mock construction,
+like:
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/MockMakerDocSpec.groovy[tag=mockito]
+----
+
+If you want to make final methods mockable by default, you can select this mock maker as the preferred mock maker.
+It can't mock native methods, see https://javadoc.io/doc/org.mockito/mockito-core/5.6.0/org/mockito/Mockito.html#Mocking_Final[the Mockito documentation] for details.
+
+CAUTION: If you try to mock a final method without a Mock Maker supporting it,
+         it will silently fail, without honoring your specified interactions.
+
+You can configure the created mock objects using the interface `org.mockito.MockSettings` during the construction to use features provided by Mockito:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/MockMakerDocSpec.groovy[tag=mock-serializable]
+----
+
+The `mockito` mock maker uses `org.mockito.MockMakers.INLINE` under the hood,
+please see the Mockito manual "Mocking final types, enums and final methods" for all pros and cons,
+when using `org.mockito.MockMakers.INLINE`.
+It also supports mocking of static methods of classes and interfaces with `SpyStatic`.
+See <<interaction_based_testing.adoc#static-mocks,static mocks>> section for more details.
+
+==== Custom Mock Maker
+
+Spock provides an extension point to plug in your own mock maker for creating mock objects.
+To create a mock maker you need to create a class that implements the interface `IMockMaker` and put its
+fully-qualified class name in a file `META-INF/services/org.spockframework.mock.runtime.IMockMaker` in the
+class path. As soon as these two conditions are satisfied, your mock maker is automatically loaded and used when Spock is
+running.
+
+You should provide a constant class containing the mock maker ID or a method for creating `IMockMakerSettings` to your users,
+that your mock maker can be easily selected.
+
+
+The `IMockMakerSettings` can be used by a custom `IMockMaker` to provide mock maker specific API settings in a type-safe way.
+The custom mock maker may subclass `IMockMakerSettings` to transport custom data from the declaration site to the mock
+creation. The custom mock maker then provides a static method to create an instance of that subclass and the parameters
+are then used during mock creation.
+
+.Custom Mock Maker Example
+[source,java,indent=0]
+----
+include::{sourcedir}/extension/FancyMockMaker.java[tag=fancy-mock-maker]
+----
+
+.Custom Mock Maker Usage Example
+[source,groovy,indent=0]
+----
+include::{sourcedir}/extension/FancyMockMakerDocSpec.groovy[tag=fancy-mock-maker-usage]
+----
+
+[#extension-store]
+=== Keeping State in Extensions
+
+Prior to Spock 2.4, extensions could only store state either in their own instances or their interceptor instances.
+Often, the state can be kept locally in the `intercept(IMethodInvocation)` method around the `IMethodInvocation.proceed()` call. However, there are cases where this is not possible, for example when using initializer interceptors.
+
+Spock 2.4 adds a new `org.spockframework.runtime.extension.IStore` interface that allows extensions to store and retrieve data during the execution of a specification.
+
+The store is available from the `org.spockframework.runtime.extension.IMethodInvocation` interface via the `getStore(IStore.Namespace namespace)` method. Currently, it is not possible to access the store directly from an extension, only via registering an <<#interceptors,interceptor>>.
+
+The stores are hierarchical and follow roughly the same hierarchy as shown in the <<spock-interceptors>> figure. The hierarchy is as follows:
+
+[source]
+----
+Root
+┗ Specification
+  ┗ Feature
+    ┗ Iteration
+----
+
+.Store hierarchy
+[plantuml,images/extension-store,svg]
+....
+@startuml
+state Root #88CCEE {
+    state ASpec #DDCC77 {
+        state AFeature1 #44AA99 {
+            state "AFeature1[1]" #CC6677
+            state "AFeature1[2]" #CC6677
+        }
+        state AFeature2 #44AA99 {
+            state "AFeature2[1]" #CC6677
+            state "AFeature2[2]" #CC6677
+        }
+    }
+    state BSpec #DDCC77{
+        state BFeature1 #44AA99 {
+            state "BFeature1[1]" #CC6677
+            state "BFeature1[2]" #CC6677
+        }
+        state BFeature2 #44AA99 {
+            state "BFeature2[1]" #CC6677
+            state "BFeature2[2]" #CC6677
+        }
+    }
+}
+
+'// color palette is TOL from https://davidmathlogic.com/colorblind/
+'// https://personal.sron.nl/~pault/ muted variant
+@enduml
+....
+
+If an item is not found in the current store, its parent store is searched, and so on until the root store is reached. For more information see the JavaDoc of `org.spockframework.runtime.extension.IStore`.
+
+.Example
+If an interceptor adds a `Macguffin` to the store via a `sharedInitializerInterceptor`  for `ASpec` it will be available to all features (`AFeature1` and `AFeature2`) and iterations (`AFeature1[1]`, `AFeature1[2]`, `AFeature2[1]`, `AFeature2[2]`) of that specification, but not to `BSpec` or its features. Conversely, if a feature interceptor adds a `Thingmajig` to the store for `AFeature1` it will be available to all its iterations (`AFeature1[1]`, `AFeature1[2]`), but not to sibling features (`AFeature2`) or to the specification (`ASpec`).
+
+
+NOTE: When the store is closed, it will call the `close()` method for all stored values that implement `java.lang.AutoCloseable`.
+      Stored values will be closed in reverse insertion order.
+      This does not happen, if the value was added and subsequently removed from the store, before the store was closed.
+
+==== Example of a global extension using the Store
+
+.Global Extension implementation
+[source,groovy,indent=0]
+----
+include::{sourcedir}/extension/ExtensionStoreSpec.groovy[tag=example-extension]
+----
+<1> The `Namespace` for the extension is created, here we use the extension's class as key
+<2> The extension registers the `INTERCEPTOR` for each feature method
+<3> `executionStart` is called right before the specifications are executed, it also gives access to the root-level `IStore`
+<4> The extensions uses its `Namespace` to retrieve the `IStore`
+<5> It then puts a `ConcurrentHashMap` into the store to serve as collector for the data
+<6> During the feature method execution the `INTERCEPTOR` retrieves the `IStore` via the shared `Namespace`
+<7> It then retrieves the `ConcurrentHashMap` via the key, retrieval request will propagate through the hierarchy until it finds the value at the root-level
+<8> It then increments the counter for the occurred exception type, creating the counter if it was not yet present.
+<9> `executionStop` is called after all tests have been executed and also give access to the root-level `IStore`.
+    The extension uses this to print a report of the collected exception statistics.
+
+.Example Specs
+[source,groovy,indent=0]
+----
+include::{sourcedir}/extension/ExtensionStoreSpec.groovy[tag=example-spec]
+----
+
+The extension generates the following output for the example code above.
+
+.Output
+[source,indent=0]
+----
+include::{sourcedir}/extension/ExtensionStoreSpec.groovy[tag=example-result]
+----
+
+
+[[default-value-provider]]
+=== Default Value Provider Extensions
+
+Stubs use the `EmptyOrDummyResponse` to return a default value for a method call.
+If the `EmptyOrDummyResponse` doesn't have specific instructions for a type it will return a new `Stub` for that type.
+This works for most cases, but can lead to unexpected behavior if the type does have a behavioral contract that is not fulfilled by the `Stub`.
+Another problematic case is when the type is `final` or `sealed` as those are not mockable by default.
+
+To address these issues, Spock 2.4 introduces the `org.spockframework.runtime.extension.IDefaultValueProviderExtension` that is loaded via Java's `ServiceLoader` mechanism.
+This extension allows you to provide a default value if the `EmptyOrDummyResponse` doesn't have specific instructions for a type.
+
+.Example Implementation
+[source,groovy,indent=0]
+----
+include::{sourcedir-java}/smoke/mock/MaybeDefaultValueProvider.java[tag=sample-implementation]
+----
+
+It is primarily for framework developers who want to provide a default value for their framework types.
+Or users of a framework that doesn't provide default values for their special types.
+
+If you want to change the default response behavior for `Stub` have a look at <<interaction_based_testing.adoc#ALaCarteMocks,A la Carte Mocks>> and how to use your own `org.spockframework.mock.IDefaultResponse`.
+
+=== Listeners
+
+Extensions can register listeners to receive notifications about the progress of the test run.
+These listeners are intended to be used for reporting, logging, or other monitoring purposes.
+They are not intended to modify the test run in any way.
+You can register the same listener instance on multiple specifications or features.
+Please consult the JavaDoc of the respective listener interfaces for more information.
+
+==== `IRunListener`
+
+The `org.spockframework.runtime.IRunListener` can be registered via `SpecInfo.addListener(IRunListener)` and will receive notifications about the progress of the test run of a single specification.
+
+[#block-listener]
+==== `IBlockListener`
+
+The `org.spockframework.runtime.extension.IBlockListener` can be registered on a feature via, `FeatureInfo.addBlockListener(IBlockListener)` and will receive notifications about the progress of the feature.
+
+It will be called once when entering a block (`blockEntered`) and once when exiting a block (`blockExited`).
+Both methods receive the `BlockInfo` of the block that is entered or exited.
+They also receive the current `Specification` instance which gives access to the `ISpecificationContext` to get the current `IterationInfo` or retrieve an `IStore`.
+While this gives extensive access to the current state of the test run, it should be used responsibly as it can lead to surprising results if abused.
+
+When an exception is thrown in a block, the `blockExited` will not be called for that block.
+The failed block will be part of the `ErrorContext` in `ErrorInfo` that is passed to `IRunListener.error(ErrorInfo)`.
+If a `cleanup` block is present the cleanup block listener methods will still be called.

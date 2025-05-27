@@ -575,9 +575,12 @@ is only meant for documentation purposes and doesn't carry any semantics.
 
 === Mocking Classes
 
-Besides interfaces, Spock also supports mocking of classes. Mocking classes works
-just like mocking interfaces; the only additional requirement is to put `byte-buddy` 1.9+ or
-`cglib-nodep` 3.2.0+ on the class path.
+Besides interfaces, Spock also supports mocking of classes and interfaces with
+different <<extensions.adoc#mock-makers,mock makers>>.
+Mocking classes works just like mocking interfaces, but you may need to put
+additional runtime dependencies on the class path, depending on the used mock maker.
+
+=== Mock Instance Construction
 
 When using for example
 
@@ -585,11 +588,25 @@ When using for example
 - ``Spy``s that are configured with `useObjenesis: true` or
 - ``Spy``s that spy on a concrete instance like `Spy(myInstance)`
 
-it is also necessary to put `objenesis` 3.0+ on the class path, except for classes with accessible
+it is necessary to put `org.objenesis:objenesis` 3.0+ on the class path, except for classes with accessible
 no-arg constructor or configured `constructorArgs` unless the constructor call should not be done,
 for example to avoid unwanted side effects.
 
-If either of these libraries is missing from the class path, Spock will gently let you know.
+If the library is missing from the class path, Spock will gently let you know.
+
+=== Selecting a Mock Maker
+
+The different <<extensions.adoc#mock-makers,mock makers>> have different capabilities and drawbacks.
+You can manually select the used mock maker for the mocked object,
+by specifying an `IMockMakerSettings` instance as the `mockMaker` mock option.
+
+The class `spock.mock.MockMakers` provides constants and methods for the built-in mock makers.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/MockMakerDocSpec.groovy[tag=mock1]
+----
+This will use the `byte-buddy` mock maker to create the `subscriber`.
 
 == Stubbing
 
@@ -833,7 +850,8 @@ Subscriber subscriber = Stub {
 [[Spies]]
 === Spies
 
-(Think twice before using this feature. It might be better to change the design of the code under specification.)
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
 
 A _spy_ is created with the `MockingApi.Spy` factory method:
 
@@ -903,7 +921,8 @@ i.e. for interface mocks there must be a default method, for class mocks there m
 [[PartialMocks]]
 === Partial Mocks
 
-(Think twice before using this feature. It might be better to change the design of the code under specification.)
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
 
 Spies can also be used as partial mocks:
 
@@ -922,6 +941,79 @@ then:
 // demand a call on the same object
 1 * persister.persist("msg")
 ----
+
+[[MockingStaticMethods]]
+== Mocking Static Methods
+
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
+
+Spock supports two ways of mocking static methods:
+
+* `SpyStatic()` static mocks: Works with Java and Groovy, but requires a mock maker supporting this, e.g. <<extensions.adoc#mock-makers-mockito,mockito>> Mock Maker.
+* <<#global-groovy-mock-static-methods,Global Groovy mocks>>: Work only for Groovy code not for Java.
+
+[[static-mocks]]
+=== Static Mocks
+
+You can create static mocks with `SpyStatic()`.
+
+`SpyStatic(<Type>)` mocks the static methods of the given type; by default, delegates all calls to the real static methods.
+Supports both stubbing and mocking.
+
+We are using the class `StaticClass` in the examples:
+
+.Example static class used in the test examples
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/StaticSpyDocSpec.groovy[tag=mock-static-class]
+----
+
+We want to mock the method `staticMethod()`, so we can create a static mock for the `StaticClass` type:
+
+.Mock static method of a class with SpyStatic()
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/StaticSpyDocSpec.groovy[tag=mock-static1]
+----
+
+You can also specify the answers after construction by defining the interactions as for a normal mock:
+
+.Mock static method of a class with interactions
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/StaticSpyDocSpec.groovy[tag=mock-static-interactions]
+----
+
+It is also possible to stub all static methods of a class like a `Stub` would do:
+
+.Stub all static methods of a class with default interaction
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/StaticSpyDocSpec.groovy[tag=stub-all-static-methods]
+----
+
+NOTE: The static mocks require a mock maker supporting static methods, e.g. <<extensions.adoc#mock-makers-mockito,mockito>>.
+See <<extensions.adoc#mock-makers,mock makers>> table for mock makers supporting it.
+
+=== Static Mocks and Threading
+
+The static mocks are thread-local, so they do not interfere with concurrent test execution.
+But this also means that a static mock will not be active, if your code under test will use other threads.
+
+A static mock is activated on the thread, which created the mock, up until the feature execution ends.
+You can activate all static mocks on a different thread by hand:
+
+.Use static mocks in a different Thread
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/StaticSpyDocSpec.groovy[tag=mock-static-different-thread]
+----
+
+The `spock.mock.MockingApi` provides methods to activate a static mock on other threads:
+
+* `runWithThreadAwareMocks(Runnable)`
+* `withActiveThreadAwareMocks(Callable)`
 
 [[GroovyMocks]]
 == Groovy Mocks
@@ -951,26 +1043,18 @@ Subscriber subscriber = GroovyMock()
 [[MockingAllInstancesOfAType]]
 === Mocking All Instances of a Type
 
-(Think twice before using this feature. It might be better to change the design of the code under specification.)
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
 
 Usually, Groovy mocks need to be injected into the code under specification just like regular mocks.
 However, when a Groovy mock is created as _global_, it automagically replaces all real instances
-of the mocked type for the duration of the feature method:footnote:[You may know this behavior from Groovy's
-https://docs.groovy-lang.org/docs/groovy-2.4.1/html/gapi/groovy/mock/interceptor/MockFor.html[MockFor] and
-https://docs.groovy-lang.org/docs/groovy-2.4.1/html/gapi/groovy/mock/interceptor/StubFor.html[StubFor] facilities.]
+of the mocked type for the duration from mock creation up until the end of the feature method:footnote:[You may know this behavior from Groovy's
+https://docs.groovy-lang.org/docs/groovy-4.0.13/html/gapi/groovy/mock/interceptor/MockFor.html[MockFor] and
+https://docs.groovy-lang.org/docs/groovy-4.0.13/html/gapi/groovy/mock/interceptor/StubFor.html[StubFor] facilities.]
 
-[source,groovy]
+[source,groovy,indent=0]
 ----
-def publisher = new Publisher()
-publisher << new RealSubscriber() << new RealSubscriber()
-
-RealSubscriber anySubscriber = GroovyMock(global: true)
-
-when:
-publisher.publish("message")
-
-then:
-2 * anySubscriber.receive("message")
+include::{sourcedir}/interaction/GlobalMockDocSpec.groovy[tag=global-spy]
 ----
 
 Here, we set up the publisher with two instances of a real subscriber implementation.
@@ -979,25 +1063,63 @@ real subscribers to the mock object. The mock object's instance isn't ever passe
 it is only used to describe the interaction.
 
 NOTE: A global mock can only be created for a class type. It effectively replaces
-all instances of that type for the duration of the feature method.
+all instances of that type for the duration from mock creation up until the end of the feature method.
+
+CAUTION: Using global mocks for standard types from the JDK, for example `ArrayList`, is a bad idea and can lead to unforeseen and widespread consequences.
+
+CAUTION: The declaration order of global mocks is relevant.
+         The `GroovySpy(global:true, <type>)` must come before all creations of new mocked/spied objects of `<type>`.
+         The global spies will only take effect on objects of that type, if the `GroovySpy(global:true, <type>)` was
+         executed before the `new <type>`.
 
 Since global mocks have a somewhat, well, global effect, it's often convenient
 to use them together with `GroovySpy`. This leads to the real code getting
 executed _unless_ an interaction matches, allowing you to selectively listen
 in on objects and change their behavior just where needed.
 
+CAUTION: When using `GroovyMock(global:true)` it will also replace constructor calls, which will return `null` by default.
+         If you want working real constructors, please use `GroovySpy` instead.
+
+.GroovyMock(global) will also replace constructors
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/GlobalMockDocSpec.groovy[tag=global-mock-constructor]
+----
+
+If you want, that the real constructors are called:
+
+.GroovyMock(global), but using the real constructors
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/GlobalMockDocSpec.groovy[tag=global-mock-constructor-real]
+----
+
+When `Specifications` or `Features` are executed concurrently you have to make sure that the `Features` which create
+global mocks on the same types are properly guarded against each other, because a global mock changes the global state
+for the mocked `Class` during execution.
+
+[[global-mocks-parallel-execution]]
+==== Global mocks and parallel execution
+
+Creating a global `GroovyMock`/`GroovyStub`/`GroovySpy` when <<parallel_execution.adoc#parallel-execution,parallel execution>> is enabled,
+requires that the spec is annotated with <<parallel_execution.adoc#isolated-execution, @Isolated>> or `@ResourceLock(org.spockframework.runtime.model.parallel.Resources.META_CLASS_REGISTRY)`.
+If it is only used for a feature, then it suffices that the feature is annotated with `@ResourceLock(org.spockframework.runtime.model.parallel.Resources.META_CLASS_REGISTRY)`.
+The rule of thumb to choose between `@ResourceLock` and `@Isolated`, is to look at how widespread the mocked type is used.
+If it is widely used, then `@Isolated` is the safe choice, otherwise `@ResourceLock` may be sufficient.
+
 .How Are Global Groovy Mocks Implemented?
 ****
 Global Groovy mocks get their super powers from Groovy meta-programming. To be more precise,
-every globally mocked type is assigned a custom meta class for the duration of the feature method.
-Since a global Groovy mock is still based on a CGLIB proxy, it will retain its general mocking capabilities
+every globally mocked type is assigned a custom `MetaClass` for the duration of the feature method.
+Since a global Groovy mock is still based on a proxy class, it will retain its general mocking capabilities
 (but not its super powers) when called from Java code.
 ****
 
 [[MockingConstructors]]
 === Mocking Constructors
 
-(Think twice before using this feature. It might be better to change the design of the code under specification.)
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
 
 Global mocks support mocking of constructors:
 
@@ -1019,12 +1141,14 @@ new RealSubscriber("Fred") >> new RealSubscriber("Barney")
 Now, whenever some code tries to construct a subscriber named Fred, we'll construct
 a subscriber named Barney instead.
 
-[MockingStaticMethods]
-=== Mocking Static Methods
+[[global-groovy-mock-static-methods]]
+=== Global Groovy Mocks for Static Methods
 
-(Think twice before using this feature. It might be better to change the design of the code under specification.)
+NOTE: Think twice before using this feature.
+It might be better to change the design of the code under specification.
 
-Global mocks support mocking and stubbing of static methods:
+Global mocks support mocking and stubbing of static methods in Groovy code.
+If you want to mock static methods for Java code please use <<#static-mocks,Static Mocks>>.
 
 [source,groovy]
 ----
@@ -1042,6 +1166,8 @@ the mock's instance isn't really needed. In such a case one can just write:
 ----
 GroovySpy(RealSubscriber, global: true)
 ----
+
+NOTE: Global mocks will only work for Groovy code under test not for Java code.
 
 == Advanced Features
 
@@ -1091,6 +1217,83 @@ expect:
 mock.name == "list2"
 mock.type == List
 mock.nature == MockNature.MOCK
+----
+
+[[DetachedMockFactory]]
+=== Create Mocks Outside Specifications
+
+Sometimes, it can be helpful to create and possibly preconfigure mock, stub or spy objects outside specifications, especially if you want to factor out duplicate or similar code from there.
+Use `DetachedMockFactory` to create such mock objects.
+
+NOTE: Detached mocks, as the name implies, must be attached to a specification to make them functional.
+      This either happens manually by calling `MockUtil.attachMock(Object, Specification)` or automatically by declaring the mock as an instance field with an `@AutoAttach` annotation, see <<extensions.adoc#_autoattach,AutoAttach>>.
+      While auto-attached mocks will also be auto-detached during specification clean-up, you need to take care of manually attached mocks by yourself, calling `MockUtil.detachMock(Object)` when they are no longer in use.
+      Spring and Guice dependency injection will also automatically attach mocks, when the `SpringExtension` or `GuiceExtension` is used.
+
+Assuming that we have an application class `Car` and each car has an `Engine`:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=engine;car]
+----
+
+In our specification, we declare a detached mock factory and a mock util, either inside a feature method or, if we need them for multiple features, as (preferably) shared or (suboptimally) static instances:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=declare-shared]
+----
+
+==== Manually attach / detach
+
+Now in our feature, we create a detached `Engine` mock, attach the mock to the specification manually, stub its `isStarted()` method, inject the mock into a `Car` subject under specification, use the subject and finally detach the mock again after use:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=attach-manually]
+----
+
+==== Use @AutoAttach
+
+Same situation, different approach:
+We let Spock take care of automatically attaching the detached mock when starting the feature method and detaching it again after running the feature.
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=auto-attach]
+----
+
+==== Pre-configure detached mock with default response
+
+This advanced use case might only be of interest to a minority of users, you may skip it for now if you just want to learn Spock basics.
+
+Usually, you would simply create your detached mock outside of Spock, but then define interactions (stubbed method results, method call verifications) inside the feature method itself.
+Sometimes however, you might want to define some (user-overridable) default behaviour right in the detached mock definition itself and even make it somewhat configurable.
+
+A valid use case could be a detached mock used in a dependency injection framework like Spring or Guice.
+The framework might wire the mock and rely on some default behaviour, before Spock even gets a chance to stub any methods.
+Defining default behaviour is possible using a combination of Spock's mocking API and custom `IDefaultResponse` implementations.
+
+A custom detached mock creator could look like this (please figure out by yourself what it does and how it works):
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=custom-mock-creator]
+----
+
+The first parametrized feature uses the mock without attach:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=use-custom-mock-creator-no-attach]
+----
+
+The next parametrized feature method showcasing a set of usage scenarios when a detached mock
+is attached to a spec before usage:
+
+[source,groovy,indent=0]
+----
+include::{sourcedir}/interaction/DetachedMockFactoryDocSpec.groovy[tags=use-custom-mock-creator-attach]
 ----
 
 == Further Reading
