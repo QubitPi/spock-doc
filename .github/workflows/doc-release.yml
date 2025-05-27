@@ -45,4 +45,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: docs
           user_name: QubitPi
-          user_email: jack20191124@proton.me
+          user_email: jack20220723@gmail.com
+          cname: spock.qubitpi.org
