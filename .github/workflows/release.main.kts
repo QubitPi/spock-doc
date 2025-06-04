@@ -96,7 +96,7 @@ workflow(
         )
         uses(
             name = "Upload to Codecov.io",
-            condition = "${github.repository_owner} != 'QubitPi'",
+            condition = "${github.repository} == 'spockframework/spock'",
             action = CodecovAction(
                 failCiIfError = true
             )

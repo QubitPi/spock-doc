@@ -92,7 +92,7 @@ jobs:
       name: 'Stop Daemon'
       run: './gradlew --stop'
     - id: 'step-4'
-      if: 'github.repository_owner != ''QubitPi'''
+      if: 'github.repository == ''spockframework/spock'''
       name: 'Upload to Codecov.io'
       uses: 'codecov/codecov-action@v5'
       with:
