@@ -28,7 +28,6 @@ jobs:
     runs-on: '${{ matrix.os }}'
     needs:
     - 'check_yaml_consistency'
-    if: 'github.repository == ''spockframework/spock'''
     strategy:
       fail-fast: false
       matrix:
@@ -104,6 +103,7 @@ jobs:
     needs:
     - 'build-and-verify'
     - 'check_yaml_consistency'
+    if: 'github.repository == ''spockframework/spock'''
     strategy:
       matrix:
         variant:

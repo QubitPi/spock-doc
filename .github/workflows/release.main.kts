@@ -61,7 +61,6 @@ workflow(
         id = "build-and-verify",
         name = "Build and Verify",
         runsOn = RunnerType.Custom(expr(Matrix.operatingSystem)),
-        condition = "${github.repository} == 'spockframework/spock'",
         strategy = Strategy(
             matrix = matrix
         )
@@ -97,6 +96,7 @@ workflow(
         )
         uses(
             name = "Upload to Codecov.io",
+            condition = "${github.repository_owner} != 'QubitPi'",
             action = CodecovAction(
                 failCiIfError = true
             )
@@ -106,6 +106,7 @@ workflow(
         id = "release-spock",
         name = "Release Spock",
         runsOn = RunnerType.Custom(expr(Matrix.operatingSystem)),
+        condition = "${github.repository} == 'spockframework/spock'",
         needs = listOf(buildAndVerify),
         strategyMatrix = mapOf(
             // publish needs to be done for all versions
