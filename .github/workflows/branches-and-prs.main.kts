@@ -119,12 +119,5 @@ workflow(
             // secrets are not injected for pull requests
             env = commonCredentials
         )
-        uses(
-            condition = "${github.repository} == 'spockframework/spock'",
-            name = "Upload to Codecov.io",
-            action = CodecovAction(
-                failCiIfError = true
-            )
-        )
     }
 }
